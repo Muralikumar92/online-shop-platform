@@ -43,7 +43,7 @@ public class Customer {
     private boolean emailVerified = false;
 
     /** True for a customer created automatically during guest checkout (no signup/login/email). */
-    @Column(nullable = false)
+    @Column(name = "is_guest", nullable = false)
     private boolean guest = false;
 
     /** Opaque per-browser cookie value, used to detect "you already have an open guest order" without an account. */
