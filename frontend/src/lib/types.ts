@@ -59,6 +59,7 @@ export interface OrderLineItem {
 }
 
 export type OrderStatus =
+  | "REQUESTED"
   | "PENDING_PAYMENT"
   | "PAYMENT_SUBMITTED"
   | "PAID"
@@ -78,7 +79,7 @@ export interface OrderResponse {
   discountInPaise: number;
   totalInPaise: number;
   couponCode: string | null;
-  customerEmail: string;
+  customerEmail: string | null;
   shippingFullName: string;
   shippingPhone: string;
   shippingAddressLine1: string;
@@ -88,6 +89,7 @@ export interface OrderResponse {
   shippingPincode: string;
   paymentMethod: PaymentMethod;
   paymentReference: string | null;
+  guest: boolean;
   createdAt: string;
   updatedAt: string;
   items: OrderLineItem[];
@@ -133,6 +135,21 @@ export interface CheckoutInitiateResponse {
   amountInPaise: number;
   razorpayKeyId: string | null;
   manualPaymentInstructions: ManualPaymentInstructions | null;
+}
+
+/** Guest checkout (no account/login) - see GuestCheckoutRequest/Response on the backend. */
+export interface GuestCheckoutRequestBody {
+  items: { itemId: number; quantity: number }[];
+  couponCode?: string | null;
+  shippingAddress: ShippingAddress;
+}
+
+export interface GuestCheckoutResponse {
+  orderId: number;
+  trackingToken: string;
+  trackingUrl: string;
+  totalInPaise: number;
+  shareMessage: string;
 }
 
 /** Owner-facing category shape (includes display order / active, unlike the public CategoryPublic). */

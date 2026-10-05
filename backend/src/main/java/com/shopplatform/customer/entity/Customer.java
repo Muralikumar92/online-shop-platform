@@ -26,10 +26,10 @@ public class Customer {
     @JoinColumn(name = "shop_id", nullable = false)
     private Shop shop;
 
-    @Column(nullable = false)
+    /** Null for guest checkouts (no account/signup). */
     private String email;
 
-    @Column(nullable = false)
+    /** Null for guest checkouts - there's no password since there's no login. */
     private String passwordHash;
 
     private String fullName;
@@ -41,6 +41,13 @@ public class Customer {
 
     @Column(nullable = false)
     private boolean emailVerified = false;
+
+    /** True for a customer created automatically during guest checkout (no signup/login/email). */
+    @Column(nullable = false)
+    private boolean guest = false;
+
+    /** Opaque per-browser cookie value, used to detect "you already have an open guest order" without an account. */
+    private String guestDeviceToken;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();

@@ -1,11 +1,38 @@
 services:
+  # Beta/low-cost setup: Postgres runs in a container on the same EC2 box
+  # instead of RDS (no managed backups/failover - fine for a small beta,
+  # revisit RDS once there's real traffic/revenue to justify ~$13/mo more).
+  postgres:
+    image: postgres:16-alpine
+    container_name: shopplatform-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-shopplatform}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   backend:
     image: ${ECR_REGISTRY}/shopplatform-backend:${IMAGE_TAG:-latest}
     container_name: shopplatform-backend
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT:-5432}
+      DB_HOST: postgres
+      DB_PORT: 5432
       DB_NAME: ${DB_NAME:-shopplatform}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
@@ -40,6 +67,7 @@ services:
       - backend
     environment:
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+      BACKEND_INTERNAL_URL: http://backend:8080
     expose:
       - "3000"
     logging:
@@ -57,25 +85,18 @@ services:
       - frontend
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - certbot-etc:/etc/letsencrypt:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # No certbot/TLS service for the beta - no domain is registered yet, so
+  # access is plain HTTP over the Elastic IP. Once a domain + Route53 zone
+  # exist, reintroduce a certbot service (DNS-01 via Route53, as previously
+  # planned) and switch nginx to terminate HTTPS - see DEPLOYMENT.md.
 
 volumes:
-  certbot-etc:
-
-  # Wildcard certs (*.myshops.com) require the DNS-01 challenge, which needs
-  # Route53 access rather than a plain HTTP webroot challenge (one cert per
-  # subdomain would not scale to "any shop owner can subscribe"). Credentials
-  # come from an IAM role attached to the EC2 instance - see DEPLOYMENT.md.
-  certbot:
-    image: certbot/dns-route53
-    container_name: shopplatform-certbot
-    volumes:
-      - certbot-etc:/etc/letsencrypt
-    entrypoint: >
-      sh -c "trap exit TERM; while :; do certbot renew --dns-route53; sleep 12h; done"
-
-volumes:
-  certbot-etc:
+  postgres-data:

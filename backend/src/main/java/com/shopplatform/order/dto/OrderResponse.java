@@ -25,6 +25,7 @@ public record OrderResponse(
     String shippingPincode,
     String paymentMethod,
     String paymentReference,
+    boolean guest,
     Instant createdAt,
     Instant updatedAt,
     List<LineItem> items,
@@ -43,7 +44,7 @@ public record OrderResponse(
             order.getTotalInPaise(), order.getCouponCode(), order.getCustomer().getEmail(),
             order.getShippingFullName(), order.getShippingPhone(), order.getShippingAddressLine1(),
             order.getShippingAddressLine2(), order.getShippingCity(), order.getShippingState(), order.getShippingPincode(),
-            order.getPaymentMethod().name(), order.getPaymentReference(),
+            order.getPaymentMethod().name(), order.getPaymentReference(), order.getCustomer().isGuest(),
             order.getCreatedAt(), order.getUpdatedAt(), items, buildManualInstructions(order)
         );
     }

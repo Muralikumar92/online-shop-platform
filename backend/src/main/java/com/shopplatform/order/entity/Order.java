@@ -60,6 +60,19 @@ public class Order {
     /** Self-reported UTR/UPI reference or note the customer supplies after paying the owner directly (MANUAL method only). */
     private String paymentReference;
 
+    /**
+     * False while a guest order sits at REQUESTED - no stock has been
+     * deducted yet because the owner hasn't decided to reserve it. True for
+     * every normal (signed-in) order, and for a guest order from the moment
+     * the owner reserves it onward; controls whether releasing/cancelling
+     * the order should restore stock.
+     */
+    @Column(nullable = false)
+    private boolean stockReserved = true;
+
+    /** Opaque, unguessable token shared with the customer (via the share link) so they can track/cancel a guest order with no login. */
+    private String guestAccessToken;
+
     @Column(nullable = false)
     private String shippingFullName;
     @Column(nullable = false)
@@ -84,6 +97,8 @@ public class Order {
     private List<OrderItem> items = new ArrayList<>();
 
     public enum Status {
+        /** Guest-checkout only: customer submitted the order but the owner hasn't reserved stock/accepted it yet. */
+        REQUESTED,
         PENDING_PAYMENT, PAYMENT_SUBMITTED, PAID, PAYMENT_FAILED, CANCELLED,
         PACKED, DISPATCHED, IN_TRANSIT, DELIVERED
     }

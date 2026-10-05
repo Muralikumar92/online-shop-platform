@@ -34,4 +34,10 @@ public class OwnerOrderController {
                                        @PathVariable Long orderId, @Valid @RequestBody OrderStatusUpdateRequest request) {
         return orderService.updateStatus(ownerId, shopId, orderId, request);
     }
+
+    /** Accepts a guest order request and locks stock for it (see OrderService#reserveGuestOrder). */
+    @PostMapping("/{orderId}/reserve")
+    public OrderResponse reserve(@AuthenticationPrincipal Long ownerId, @PathVariable Long shopId, @PathVariable Long orderId) {
+        return orderService.reserveGuestOrder(ownerId, shopId, orderId);
+    }
 }

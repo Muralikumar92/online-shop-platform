@@ -8,6 +8,7 @@ import { formatPaise } from "@/lib/types";
 import OrderStatusBadge from "@/components/OrderStatusBadge";
 
 const NEXT_STATUSES: Record<OrderStatus, OrderStatus[]> = {
+  REQUESTED: [], // handled via dedicated Reserve/Reject buttons, not the generic status dropdown (see below)
   PENDING_PAYMENT: ["CANCELLED"],
   PAYMENT_SUBMITTED: ["PAID", "CANCELLED"],
   PAID: ["PACKED", "CANCELLED"],
@@ -53,6 +54,25 @@ export default function OrdersTab({ shopId }: { shopId: number }) {
     }
   }
 
+  /** Locks stock for a guest REQUESTED order - only do this once you've actually heard from the customer (WhatsApp/Instagram DM). */
+  async function handleReserve(orderId: number) {
+    setUpdatingId(orderId);
+    setError(null);
+    try {
+      await apiFetch(`/owner/shops/${shopId}/orders/${orderId}/reserve`, { method: "POST" }, token);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not reserve this order - stock may no longer be available.");
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  async function handleReject(orderId: number) {
+    if (!confirm("Reject this order request? No stock will be affected since none was reserved yet.")) return;
+    await handleStatusChange(orderId, "CANCELLED");
+  }
+
   if (loading) return <p className="text-sm text-muted">Loading orders…</p>;
 
   return (
@@ -66,9 +86,11 @@ export default function OrdersTab({ shopId }: { shopId: number }) {
             className="flex w-full min-w-0 items-center justify-between gap-3 text-left"
           >
             <div className="min-w-0 flex-1">
-              <p className="font-medium">Order #{order.id}</p>
+              <p className="font-medium">
+                Order #{order.id} {order.guest && <span className="text-xs font-normal text-muted">(guest - no account)</span>}
+              </p>
               <p className="min-w-0 break-words text-sm text-muted">
-                {order.customerEmail} · {formatPaise(order.totalInPaise)} · {new Date(order.createdAt).toLocaleString()}
+                {order.customerEmail ?? order.shippingPhone} · {formatPaise(order.totalInPaise)} · {new Date(order.createdAt).toLocaleString()}
               </p>
             </div>
             <OrderStatusBadge status={order.status} />
@@ -109,6 +131,33 @@ export default function OrdersTab({ shopId }: { shopId: number }) {
                   )}
                 </p>
               </div>
+              {order.status === "REQUESTED" && (
+                <div className="flex flex-col gap-2 rounded-xl border border-yellow-200 bg-yellow-50 p-3">
+                  <p className="text-yellow-800">
+                    A customer requested this order but it isn&apos;t paid for or confirmed yet. Reserve stock only after
+                    you&apos;ve actually heard back from them (WhatsApp/Instagram DM) and matched them by phone number above -
+                    otherwise an unresponsive stranger could lock up a limited-stock item.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={updatingId === order.id}
+                      onClick={() => handleReserve(order.id)}
+                      className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground disabled:opacity-60"
+                    >
+                      Reserve stock & accept
+                    </button>
+                    <button
+                      type="button"
+                      disabled={updatingId === order.id}
+                      onClick={() => handleReject(order.id)}
+                      className="rounded-lg border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-60"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              )}
               {NEXT_STATUSES[order.status].length > 0 && (
                 <div className="flex items-center gap-2">
                   <label className="font-medium">Update status:</label>
