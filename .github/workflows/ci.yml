@@ -13,6 +13,29 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    # BackendApplicationTests boots the full Spring context, which needs a
+    # real Postgres to run Flyway migrations against - provide one as a
+    # service container (matches local docker-compose dev setup).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: shopplatform
+          POSTGRES_USER: shopplatform
+          POSTGRES_PASSWORD: shopplatform
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U shopplatform"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: shopplatform
+      DB_USER: shopplatform
+      DB_PASSWORD: shopplatform
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
