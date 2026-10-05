@@ -1,0 +1,76 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: shopplatform-postgres
+    environment:
+      POSTGRES_DB: shopplatform
+      POSTGRES_USER: shopplatform
+      POSTGRES_PASSWORD: shopplatform
+    ports:
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shopplatform"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mailhog:
+    image: mailhog/mailhog
+    container_name: shopplatform-mailhog
+    ports:
+      - "8025:8025"   # web UI to view sent emails
+      - "1025:1025"   # SMTP
+
+  backend:
+    build:
+      context: ./backend
+    container_name: shopplatform-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: shopplatform
+      DB_USER: shopplatform
+      DB_PASSWORD: shopplatform
+      APP_ROOT_DOMAIN: localhost
+      JWT_SECRET: local-dev-secret-change-me-32bytes
+      # No SPRING_PROFILES_ACTIVE set here, so SmtpEmailService (Mailhog) is used
+      # for mail instead of SesEmailService - local dev never needs AWS SES
+      # permissions/verified identities at all (see SPRING_PROFILES_ACTIVE=prod
+      # in infra/docker-compose.prod.yml for the SES path).
+      MAIL_HOST: mailhog
+      MAIL_PORT: 1025
+      # Real AWS S3 for local media uploads (logos/thumbnails/item photos+videos) -
+      # this is the dedicated DEV bucket; production uses a completely separate
+      # bucket (see infra/docker-compose.prod.yml / DEPLOYMENT.md) so local
+      # testing can never touch real shop media.
+      # Credentials come from the mounted ~/.aws (host AWS CLI "default" profile),
+      # not from env vars, so no secrets are stored in this file.
+      AWS_REGION: ap-south-1
+      AWS_S3_BUCKET: online-shop-platform-dev-099731417020-ap-south-1
+      AWS_S3_PUBLIC_BASE_URL: https://online-shop-platform-dev-099731417020-ap-south-1.s3.ap-south-1.amazonaws.com
+    volumes:
+      - ${HOME}/.aws:/root/.aws:ro
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: shopplatform-frontend
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+      BACKEND_INTERNAL_URL: http://backend:8080
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
