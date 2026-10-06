@@ -85,18 +85,29 @@ services:
       - frontend
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - certbot-etc:/etc/letsencrypt:ro
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
 
-  # No certbot/TLS service for the beta - no domain is registered yet, so
-  # access is plain HTTP over the Elastic IP. Once a domain + Route53 zone
-  # exist, reintroduce a certbot service (DNS-01 via Route53, as previously
-  # planned) and switch nginx to terminate HTTPS - see DEPLOYMENT.md.
+  # Wildcard cert for theatti.com + *.theatti.com via DNS-01 (Route53 plugin) -
+  # required since HTTP-01 cannot issue wildcard certs. Not run automatically;
+  # invoked manually for the initial issuance and for renewals (see
+  # DEPLOYMENT.md). The EC2 instance role has route53:ChangeResourceRecordSets
+  # scoped to the theatti.com hosted zone for the DNS challenge.
+  certbot:
+    image: certbot/dns-route53:v3.1.0
+    container_name: shopplatform-certbot
+    volumes:
+      - certbot-etc:/etc/letsencrypt
+    profiles:
+      - certbot
 
 volumes:
   postgres-data:
+  certbot-etc:
