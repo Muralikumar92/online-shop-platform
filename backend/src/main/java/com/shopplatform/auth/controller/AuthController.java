@@ -19,8 +19,19 @@ public class AuthController {
     }
 
     @PostMapping("/signup")
-    public ResponseEntity<AuthResponse> signup(@Valid @RequestBody SignupRequest request) {
+    public ResponseEntity<OwnerSignupResponse> signup(@Valid @RequestBody SignupRequest request) {
         return ResponseEntity.ok(authService.signup(request));
+    }
+
+    @PostMapping("/signup/verify")
+    public ResponseEntity<AuthResponse> verifySignup(@Valid @RequestBody OtpVerifyRequest request) {
+        return ResponseEntity.ok(authService.verifySignupOtp(request));
+    }
+
+    @PostMapping("/signup/resend")
+    public ResponseEntity<Map<String, String>> resendSignupCode(@Valid @RequestBody EmailOnlyRequest request) {
+        authService.resendSignupOtp(request);
+        return ResponseEntity.ok(Map.of("message", "A new verification code has been emailed."));
     }
 
     @PostMapping("/login")

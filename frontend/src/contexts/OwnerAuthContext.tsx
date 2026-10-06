@@ -9,6 +9,13 @@ interface AuthResponse {
   token: string;
 }
 
+interface OwnerSignupResponse {
+  ownerId: number;
+  email: string;
+  needsVerification: boolean;
+  message: string;
+}
+
 export interface OwnerShop {
   id: number;
   slug: string;
@@ -30,7 +37,9 @@ interface OwnerAuthState {
   loading: boolean;
   refreshShops: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, fullName: string) => Promise<void>;
+  signup: (email: string, password: string, fullName: string) => Promise<OwnerSignupResponse>;
+  verifySignup: (email: string, code: string) => Promise<void>;
+  resendSignupCode: (email: string) => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
   resetPassword: (token: string, newPassword: string) => Promise<void>;
   logout: () => void;
@@ -102,17 +111,33 @@ export function OwnerAuthProvider({ children }: { children: ReactNode }) {
     [persistToken, refreshShops]
   );
 
-  const signup = useCallback(
-    async (email: string, password: string, fullName: string) => {
-      const res = await apiFetch<AuthResponse>("/auth/owner/signup", {
+  const signup = useCallback(async (email: string, password: string, fullName: string) => {
+    // No token is returned here - the backend requires the emailed OTP to be
+    // verified first (see verifySignup) before a session can be established.
+    return apiFetch<OwnerSignupResponse>("/auth/owner/signup", {
+      method: "POST",
+      body: JSON.stringify({ email, password, fullName }),
+    });
+  }, []);
+
+  const verifySignup = useCallback(
+    async (email: string, code: string) => {
+      const res = await apiFetch<AuthResponse>("/auth/owner/signup/verify", {
         method: "POST",
-        body: JSON.stringify({ email, password, fullName }),
+        body: JSON.stringify({ email, code }),
       });
       persistToken(res.token);
       await refreshShops();
     },
     [persistToken, refreshShops]
   );
+
+  const resendSignupCode = useCallback(async (email: string) => {
+    await apiFetch("/auth/owner/signup/resend", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  }, []);
 
   const forgotPassword = useCallback(async (email: string) => {
     await apiFetch("/auth/owner/password/forgot", {
@@ -135,8 +160,32 @@ export function OwnerAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ token, shops, loading, refreshShops, login, signup, forgotPassword, resetPassword, logout }),
-    [token, shops, loading, refreshShops, login, signup, forgotPassword, resetPassword, logout]
+    () => ({
+      token,
+      shops,
+      loading,
+      refreshShops,
+      login,
+      signup,
+      verifySignup,
+      resendSignupCode,
+      forgotPassword,
+      resetPassword,
+      logout,
+    }),
+    [
+      token,
+      shops,
+      loading,
+      refreshShops,
+      login,
+      signup,
+      verifySignup,
+      resendSignupCode,
+      forgotPassword,
+      resetPassword,
+      logout,
+    ]
   );
 
   return <OwnerAuthContext.Provider value={value}>{children}</OwnerAuthContext.Provider>;

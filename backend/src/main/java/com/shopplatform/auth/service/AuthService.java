@@ -9,6 +9,7 @@ import com.shopplatform.auth.repository.PasswordResetTokenRepository;
 import com.shopplatform.auth.repository.ShopOwnerRepository;
 import com.shopplatform.common.exception.AuthenticationFailedException;
 import com.shopplatform.common.exception.BusinessException;
+import com.shopplatform.common.exception.EmailNotVerifiedException;
 import com.shopplatform.common.exception.ResourceNotFoundException;
 import com.shopplatform.common.service.EmailService;
 import com.shopplatform.config.JwtService;
@@ -59,7 +60,7 @@ public class AuthService {
     }
 
     @Transactional
-    public AuthResponse signup(SignupRequest request) {
+    public OwnerSignupResponse signup(SignupRequest request) {
         if (ownerRepository.existsByEmailIgnoreCase(request.email())) {
             throw new BusinessException("An account with this email already exists");
         }
@@ -67,13 +68,13 @@ public class AuthService {
         owner.setEmail(request.email().toLowerCase());
         owner.setPasswordHash(passwordEncoder.encode(request.password()));
         owner.setFullName(request.fullName());
+        owner.setEmailVerified(false);
         owner = ownerRepository.save(owner);
 
-        emailService.send(owner.getEmail(), "Welcome to Online Shop Platform",
-            "Hi " + nullToEmpty(owner.getFullName()) + ",\n\nYour shop owner account has been created. "
-                + "Next step: create your shop (name, subdomain, logo).\n\nThanks!");
+        sendVerificationOtp(owner);
 
-        return toAuthResponse(owner);
+        return new OwnerSignupResponse(owner.getId(), owner.getEmail(), true,
+            "We've emailed you a 6-digit code. Enter it to verify your email and finish creating your account.");
     }
 
     @Transactional(readOnly = true)
@@ -83,7 +84,36 @@ public class AuthService {
         if (!passwordEncoder.matches(request.password(), owner.getPasswordHash())) {
             throw new AuthenticationFailedException("Invalid email or password");
         }
+        if (!owner.isEmailVerified()) {
+            throw new EmailNotVerifiedException(
+                "Please verify your email before logging in. Check your inbox for the code, or request a new one.");
+        }
         return toAuthResponse(owner);
+    }
+
+    @Transactional
+    public AuthResponse verifySignupOtp(OtpVerifyRequest request) {
+        ShopOwner owner = ownerRepository.findByEmailIgnoreCase(request.email())
+            .orElseThrow(() -> new AuthenticationFailedException("Invalid code"));
+        LoginOtp otp = otpRepository
+            .findFirstByOwnerAndCodeAndUsedFalseOrderByCreatedAtDesc(owner, request.code())
+            .orElseThrow(() -> new AuthenticationFailedException("Invalid or expired code"));
+        if (otp.getExpiresAt().isBefore(Instant.now())) {
+            throw new AuthenticationFailedException("Invalid or expired code");
+        }
+        otp.setUsed(true);
+        owner.setEmailVerified(true);
+        return toAuthResponse(owner);
+    }
+
+    @Transactional
+    public void resendSignupOtp(EmailOnlyRequest request) {
+        ShopOwner owner = ownerRepository.findByEmailIgnoreCase(request.email())
+            .orElseThrow(() -> new ResourceNotFoundException("No account found for this email"));
+        if (owner.isEmailVerified()) {
+            throw new BusinessException("This email is already verified - please log in.");
+        }
+        sendVerificationOtp(owner);
     }
 
     @Transactional
@@ -144,6 +174,20 @@ public class AuthService {
         ShopOwner owner = resetToken.getOwner();
         owner.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         resetToken.setUsed(true);
+    }
+
+    private void sendVerificationOtp(ShopOwner owner) {
+        String code = String.format("%06d", random.nextInt(1_000_000));
+        LoginOtp otp = new LoginOtp();
+        otp.setOwner(owner);
+        otp.setCode(code);
+        otp.setExpiresAt(Instant.now().plusSeconds(OTP_VALIDITY_MINUTES * 60L));
+        otpRepository.save(otp);
+
+        emailService.send(owner.getEmail(), "Verify your email for Online Shop Platform",
+            "Hi " + nullToEmpty(owner.getFullName()) + ",\n\nYour email verification code is: " + code
+                + "\nIt expires in " + OTP_VALIDITY_MINUTES + " minutes.\n\nEnter this code in the app to finish"
+                + " creating your shop owner account.");
     }
 
     private AuthResponse toAuthResponse(ShopOwner owner) {
