@@ -19,10 +19,12 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [ ] **GitHub Actions auto-deploy** — CI pipeline exists but auto-deploy to
       EC2 is blocked on unconfigured repo secrets (deploy key, host, etc.);
       deploys are manual (`scp` + `docker compose up -d`) for now.
-- [ ] **AWS SES production access** — still in sandbox mode (can only email
-      verified addresses). Was blocked on "domain verification needed";
-      now that `theatti.com` is owned and DNS-controlled, this should be
-      revisitable.
+- [~] **AWS SES production access** — `theatti.com` is now a verified SES
+      domain identity (DKIM+SPF in Route53), sender switched to
+      `no-reply@theatti.com`, and a production-access request was submitted
+      via API (`PENDING` AWS review, usually resolved within 24h). Until
+      approved, SES can still only deliver to verified recipient addresses
+      (sandbox limit) - real customers/owners won't receive OTP emails yet.
 - [ ] **RDS migration** — Postgres currently runs as a container on the same
       EC2 instance as the app; no managed backups/failover. Move to RDS.
 - [ ] **Database backup strategy** — no automated backups configured yet
