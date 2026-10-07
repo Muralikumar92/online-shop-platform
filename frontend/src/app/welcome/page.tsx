@@ -5,7 +5,10 @@ export const metadata = {
   description: "Give your shop a beautiful, mobile-first online store in minutes.",
 };
 
-export default function HomePage() {
+// Served at the platform's apex/root domain only - proxy.ts rewrites
+// requests for "/" on the root domain here, leaving every shop subdomain's
+// "/" to keep resolving to (storefront)/page.tsx (the category grid).
+export default function WelcomePage() {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center px-6 py-16 text-center">
       <div className="mx-auto flex w-full max-w-md flex-col items-center gap-6">
